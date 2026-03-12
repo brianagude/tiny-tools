@@ -377,7 +377,7 @@ export function TodoModal({ state, onClose, onCreate, onUpdate, onDelete, onCycl
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-xl p-0 gap-0 overflow-hidden"
+        className="sm:max-w-xl p-0 gap-0 overflow-hidden !top-[22%] !translate-y-0"
         onKeyDown={(e: React.KeyboardEvent) => {
           if (e.key === 'Escape') onClose()
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !isEdit) handleCreate()

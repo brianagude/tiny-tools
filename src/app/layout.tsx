@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Spline_Sans, Geist_Mono } from "next/font/google";
+import { Spline_Sans, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 
 const splineSans = Spline_Sans({
@@ -7,8 +7,8 @@ const splineSans = Spline_Sans({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const splineMono = Spline_Sans_Mono({
+  variable: "--font-spline-mono",
   subsets: ["latin"],
 });
 
@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${splineSans.variable} ${geistMono.variable} antialiased`}
+        className={`${splineSans.variable} ${splineMono.variable} antialiased`}
       >
         {children}
       </body>

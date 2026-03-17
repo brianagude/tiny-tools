@@ -1,19 +1,23 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Todo, Priority } from '@/lib/types'
 import { useTodos } from '@/hooks/useTodos'
+import { usePomodoro } from '@/hooks/usePomodoro'
 import { TodoList } from '@/components/todo/TodoList'
 import { TodoModal, ModalState } from '@/components/todo/TodoModal'
+import { PomodoroWidget } from '@/components/todo/PomodoroWidget'
 
 export default function TodoPage() {
   const { todos, addTodo, updateTodo, deleteTodo, cycleStatus, renameTag, deleteTag } = useTodos()
+  const pomodoro = usePomodoro()
   const [modal, setModal] = useState<ModalState>({ mode: 'closed' })
 
   const handleTodoClick = (todo: Todo) => setModal({ mode: 'edit', todo })
 
   const handleCreate = (title: string, fields: Partial<Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>>) => {
-    addTodo(title, fields.priority as Priority | undefined, fields.daily ?? false, fields.tags ?? [], fields.deadline)
+    addTodo(title, fields.priority as Priority | undefined, fields.daily ?? false, fields.tags ?? [], fields.deadline, fields.description)
   }
 
   const handleUpdate = (id: string, changes: Partial<Todo>) => {
@@ -41,10 +45,16 @@ export default function TodoPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      <header className="px-6 py-4 border-b border-border shrink-0 flex items-center justify-between">
+      <header className="p-4 border-b border-border shrink-0 flex items-center justify-between">
         <h1 className="text-sm font-semibold">Things I Need To Do</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">{remaining} remaining</span>
+          <Link
+            href="/to-do/stats"
+            className="text-xs px-2.5 py-1 rounded-md border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            Stats
+          </Link>
           <button
             onClick={() => setModal({ mode: 'create' })}
             className="text-xs px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -54,7 +64,7 @@ export default function TodoPage() {
         </div>
       </header>
 
-      <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border/50">
+      <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border/50 bg-border/15">
         <div className="w-2 shrink-0" />
         <div className="w-5 shrink-0" />
         <span className="flex-1 text-xs text-muted-foreground/50">Task</span>
@@ -69,14 +79,10 @@ export default function TodoPage() {
         />
       </div>
 
-      <button
-        onClick={() => setModal({ mode: 'create' })}
-        className="px-4 py-3 border-t border-border flex items-center gap-3 text-sm text-muted-foreground/50 hover:text-muted-foreground transition-colors w-full text-left"
-      >
-        <span className="w-2 shrink-0" />
-        <span className="w-5 shrink-0 text-base text-center">+</span>
-        <span>Add a task…</span>
-      </button>
+      <PomodoroWidget
+        pomodoro={pomodoro}
+        todos={todos.filter(t => t.status !== 'done' && t.status !== 'cancelled')}
+      />
 
       <TodoModal
         state={modal}

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Todo, Status, Priority } from '@/lib/types'
 import { getTodos, saveTodos, runStartupCleanup, renameGlobalTag, deleteGlobalTag } from '@/lib/storage'
+import { pruneTimeSpent } from '@/lib/pomodoroStorage'
 
 export function useTodos() {
   const [todos, setTodos] = useState<Todo[]>([])
@@ -11,6 +12,7 @@ export function useTodos() {
     const raw = getTodos()
     const { todos: cleaned, changed } = runStartupCleanup(raw)
     if (changed) saveTodos(cleaned)
+    pruneTimeSpent(cleaned.map(t => t.id))
     setTodos(cleaned)
   }, [])
 
@@ -24,12 +26,14 @@ export function useTodos() {
     priority: Priority = 'none',
     daily = false,
     tags: string[] = [],
-    deadline?: string
+    deadline?: string,
+    description?: string
   ) => {
     const now = new Date().toISOString()
     const todo: Todo = {
       id: crypto.randomUUID(),
       title,
+      description,
       status: 'todo',
       priority,
       daily,

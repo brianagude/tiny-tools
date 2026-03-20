@@ -5,16 +5,16 @@ export type Status = 'todo' | 'in-progress' | 'done' | 'cancelled'
 export const PLATFORM_TAGS: string[] = []
 
 export const TAG_COLOR_PALETTE = [
+  { name: 'red',    hex: '#E84337' },
+  { name: 'orange', hex: '#FE8601' },
+  { name: 'yellow', hex: '#FFD834' },
+  { name: 'lime',   hex: '#AEC95F' },
+  { name: 'green',  hex: '#3E7E27' },
+  { name: 'teal',   hex: '#70A5A3' },
+  { name: 'blue',   hex: '#426AA9' },
+  { name: 'violet', hex: '#8776A6' },
+  { name: 'pink',   hex: '#F285A1' },
   { name: 'gray',   hex: '#94a3b8' },
-  { name: 'red',    hex: '#f87171' },
-  { name: 'orange', hex: '#fb923c' },
-  { name: 'yellow', hex: '#facc15' },
-  { name: 'lime',   hex: '#a3e635' },
-  { name: 'green',  hex: '#4ade80' },
-  { name: 'teal',   hex: '#2dd4bf' },
-  { name: 'blue',   hex: '#60a5fa' },
-  { name: 'violet', hex: '#a78bfa' },
-  { name: 'pink',   hex: '#f472b6' },
 ] as const
 
 export interface CompletionRecord {

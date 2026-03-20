@@ -409,7 +409,7 @@ export function TodoModal({ state, onClose, onCreate, onUpdate, onDelete, onCycl
               autoFocus={descFocused}
               value={description}
               onChange={e => setDescription(e.target.value)}
-              onFocus={() => setDescFocused(true)}
+              onFocus={e => { setDescFocused(true); const len = e.currentTarget.value.length; e.currentTarget.setSelectionRange(len, len) }}
               onBlur={() => { setDescFocused(false); saveDescription() }}
               placeholder="Add description…"
               rows={2}

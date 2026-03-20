@@ -55,6 +55,134 @@ function calcStreak(byDay: Record<string, number>): number {
   return streak
 }
 
+// ── Completion heatmap ─────────────────────────────────────────────────────────
+
+function heatColor(count: number): string {
+  if (count === 0) return 'hsl(var(--border))'
+  if (count === 1) return 'rgba(74,222,128,0.30)'
+  if (count <= 3) return 'rgba(74,222,128,0.55)'
+  if (count <= 6) return 'rgba(74,222,128,0.80)'
+  return '#4ade80'
+}
+
+function CompletionHeatmap({ completionsByDay }: { completionsByDay: Record<string, number> }) {
+  const CELL = 11
+  const GAP = 2
+  const STEP = CELL + GAP
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  // Align start to the Sunday 52 full weeks before this Sunday
+  const start = new Date(today)
+  start.setDate(today.getDate() - 364)
+  start.setDate(start.getDate() - start.getDay())
+
+  // Build flat day array, padded to full weeks
+  type Day = { date: string; count: number; future: boolean; isToday: boolean }
+  const days: Day[] = []
+  const cur = new Date(start)
+  while (cur <= today || days.length % 7 !== 0) {
+    const dateKey = cur.toISOString().slice(0, 10)
+    const future = cur > today
+    days.push({
+      date: dateKey,
+      count: future ? 0 : (completionsByDay[dateKey] ?? 0),
+      future,
+      isToday: cur.getTime() === today.getTime(),
+    })
+    cur.setDate(cur.getDate() + 1)
+  }
+
+  // Group into weeks (columns of 7)
+  const weeks: Day[][] = []
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
+
+  // Month labels: track when month changes across weeks
+  const monthMarkers: { label: string; col: number }[] = []
+  let lastMonth = -1
+  weeks.forEach((week, col) => {
+    const firstReal = week.find(d => !d.future)
+    if (!firstReal) return
+    const m = new Date(firstReal.date + 'T12:00:00').getMonth()
+    if (m !== lastMonth) {
+      monthMarkers.push({ label: new Date(firstReal.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short' }), col })
+      lastMonth = m
+    }
+  })
+
+  const gridWidth = weeks.length * STEP - GAP
+  const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', '']
+  const LEFT_W = 24 // px reserved for day labels
+
+  return (
+    <div className="px-4 pt-2 pb-1">
+      <div className="overflow-x-auto">
+        <div style={{ width: LEFT_W + gridWidth }}>
+          {/* Month labels */}
+          <div className="flex mb-1" style={{ paddingLeft: LEFT_W }}>
+            {monthMarkers.map(({ label, col }, i) => {
+              const next = monthMarkers[i + 1]
+              const width = next ? (next.col - col) * STEP : undefined
+              return (
+                <span
+                  key={label + col}
+                  className="text-[9px] text-muted-foreground/50 shrink-0"
+                  style={{ width: width ?? undefined, minWidth: 0, display: 'block' }}
+                >
+                  {label}
+                </span>
+              )
+            })}
+          </div>
+
+          {/* Grid */}
+          <div className="flex" style={{ gap: GAP }}>
+            {/* Day labels */}
+            <div className="flex flex-col shrink-0" style={{ gap: GAP, width: LEFT_W }}>
+              {dayLabels.map((l, i) => (
+                <div key={i} className="text-[9px] text-muted-foreground/40 flex items-center justify-end pr-1"
+                  style={{ height: CELL }}>
+                  {l}
+                </div>
+              ))}
+            </div>
+
+            {/* Week columns */}
+            {weeks.map((week, wi) => (
+              <div key={wi} className="flex flex-col shrink-0" style={{ gap: GAP }}>
+                {week.map((day, di) => (
+                  <div
+                    key={di}
+                    title={day.future ? '' : `${day.date}: ${day.count} completed`}
+                    style={{
+                      width: CELL,
+                      height: CELL,
+                      borderRadius: 2,
+                      backgroundColor: day.future ? 'transparent' : heatColor(day.count),
+                      outline: day.isToday ? '1.5px solid hsl(var(--foreground) / 0.4)' : undefined,
+                      outlineOffset: day.isToday ? '1px' : undefined,
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-1.5 mt-2 justify-end">
+            <span className="text-[9px] text-muted-foreground/40">Less</span>
+            {[0, 1, 3, 6, 8].map(n => (
+              <div key={n} style={{ width: CELL, height: CELL, borderRadius: 2, backgroundColor: heatColor(n) }} />
+            ))}
+            <span className="text-[9px] text-muted-foreground/40">More</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Donut chart ────────────────────────────────────────────────────────────────
 
 const R = 54, STROKE = 22, SIZE = 152, CTR = SIZE / 2
@@ -253,15 +381,20 @@ export default function StatsPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        {!data.hasAnyData ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-8">
-            <p className="text-sm text-muted-foreground">No time logged yet.</p>
-            <p className="text-xs text-muted-foreground/50">
-              Start the timer on the tasks page — your stats will appear here.
-            </p>
-          </div>
-        ) : (
-          <div className="pb-10">
+        <div className="pb-10">
+          {/* ── Completion heatmap ────────────────────────────────────────── */}
+          <SectionHeader label="Tasks completed — past year" />
+          <CompletionHeatmap completionsByDay={data.completionsByDay} />
+
+          {!data.hasAnyData && data.totalCompleted === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 gap-2 text-center px-8">
+              <p className="text-sm text-muted-foreground">No data yet.</p>
+              <p className="text-xs text-muted-foreground/50">
+                Complete tasks and log time — your stats will appear here.
+              </p>
+            </div>
+          ) : (
+            <>
             {/* ── Tasks completed ───────────────────────────────────────────── */}
             {data.totalCompleted > 0 && (
               <>
@@ -432,8 +565,9 @@ export default function StatsPage() {
                   </div>
                 ))}
             </div> */}
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

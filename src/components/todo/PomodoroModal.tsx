@@ -13,9 +13,37 @@ function formatTime(seconds: number): string {
 }
 
 export function PomodoroModal({ pomodoro }: Props) {
-  const { phase, selectedTodoTitle, secondsLeft, totalSeconds, pause, resume, stop } = pomodoro
+  const { phase, selectedTodoTitle, secondsLeft, totalSeconds, pause, resume, stop, continueWork } = pomodoro
 
   if (phase === 'idle') return null
+
+  if (phase === 'prompt') {
+    return (
+      <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-2">
+        <span className="text-xs font-medium text-white/30 uppercase tracking-widest mb-2">Break complete</span>
+        <span className="text-2xl font-medium text-white">Keep going?</span>
+        {selectedTodoTitle && (
+          <span className="mt-2 text-sm text-white/50 max-w-xs truncate text-center px-4">
+            {selectedTodoTitle}
+          </span>
+        )}
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={stop}
+            className="text-sm px-4 py-1.5 rounded border border-white/20 text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            Stop
+          </button>
+          <button
+            onClick={continueWork}
+            className="text-sm px-5 py-1.5 rounded bg-white text-black hover:bg-white/90 transition-colors font-medium"
+          >
+            Continue working
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const elapsed = totalSeconds > 0 ? (totalSeconds - secondsLeft) / totalSeconds : 0
   const phaseLabel = phase === 'break' ? 'BREAK' : 'WORK'

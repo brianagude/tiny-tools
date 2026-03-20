@@ -58,11 +58,11 @@ function calcStreak(byDay: Record<string, number>): number {
 // ── Completion heatmap ─────────────────────────────────────────────────────────
 
 function heatColor(count: number): string {
-  if (count === 0) return 'hsl(var(--border))'
-  if (count === 1) return 'rgba(74,222,128,0.30)'
-  if (count <= 3) return 'rgba(74,222,128,0.55)'
-  if (count <= 6) return 'rgba(74,222,128,0.80)'
-  return '#4ade80'
+  if (count === 0) return 'rgba(148,163,184,0.25)'
+  if (count === 1) return 'rgba(244,114,182,0.30)'
+  if (count <= 3) return 'rgba(244,114,182,0.55)'
+  if (count <= 6) return 'rgba(244,114,182,0.80)'
+  return '#f472b6'
 }
 
 function CompletionHeatmap({ completionsByDay }: { completionsByDay: Record<string, number> }) {
@@ -73,16 +73,16 @@ function CompletionHeatmap({ completionsByDay }: { completionsByDay: Record<stri
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Align start to the Sunday 52 full weeks before this Sunday
-  const start = new Date(today)
-  start.setDate(today.getDate() - 364)
+  // Start from the Sunday on or before Jan 1 of the current year
+  const start = new Date(today.getFullYear(), 0, 1)
   start.setDate(start.getDate() - start.getDay())
+  const yearEnd = new Date(today.getFullYear(), 11, 31)
 
-  // Build flat day array, padded to full weeks
+  // Build flat day array through Dec 31, padded to full weeks
   type Day = { date: string; count: number; future: boolean; isToday: boolean }
   const days: Day[] = []
   const cur = new Date(start)
-  while (cur <= today || days.length % 7 !== 0) {
+  while (cur <= yearEnd || days.length % 7 !== 0) {
     const dateKey = cur.toISOString().slice(0, 10)
     const future = cur > today
     days.push({
@@ -98,15 +98,17 @@ function CompletionHeatmap({ completionsByDay }: { completionsByDay: Record<stri
   const weeks: Day[][] = []
   for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
 
-  // Month labels: track when month changes across weeks
+  // Month labels: track when month changes across weeks (current year only)
+  const currentYear = today.getFullYear()
   const monthMarkers: { label: string; col: number }[] = []
   let lastMonth = -1
   weeks.forEach((week, col) => {
-    const firstReal = week.find(d => !d.future)
-    if (!firstReal) return
-    const m = new Date(firstReal.date + 'T12:00:00').getMonth()
+    const firstCurrent = week.find(d => new Date(d.date + 'T12:00:00').getFullYear() === currentYear)
+    if (!firstCurrent) return
+    const d = new Date(firstCurrent.date + 'T12:00:00')
+    const m = d.getMonth()
     if (m !== lastMonth) {
-      monthMarkers.push({ label: new Date(firstReal.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short' }), col })
+      monthMarkers.push({ label: d.toLocaleDateString('en-US', { month: 'short' }), col })
       lastMonth = m
     }
   })
@@ -116,7 +118,7 @@ function CompletionHeatmap({ completionsByDay }: { completionsByDay: Record<stri
   const LEFT_W = 24 // px reserved for day labels
 
   return (
-    <div className="px-4 pt-2 pb-1">
+    <div className="px-4 pt-2 pb-1 col-span-2 bg-background">
       <div className="overflow-x-auto">
         <div style={{ width: LEFT_W + gridWidth }}>
           {/* Month labels */}
@@ -159,7 +161,7 @@ function CompletionHeatmap({ completionsByDay }: { completionsByDay: Record<stri
                       width: CELL,
                       height: CELL,
                       borderRadius: 2,
-                      backgroundColor: day.future ? 'transparent' : heatColor(day.count),
+                      backgroundColor: heatColor(day.count),
                       outline: day.isToday ? '1.5px solid hsl(var(--foreground) / 0.4)' : undefined,
                       outlineOffset: day.isToday ? '1px' : undefined,
                     }}
@@ -183,45 +185,19 @@ function CompletionHeatmap({ completionsByDay }: { completionsByDay: Record<stri
   )
 }
 
-// ── Donut chart ────────────────────────────────────────────────────────────────
-
-const R = 54, STROKE = 22, SIZE = 152, CTR = SIZE / 2
-const C = 2 * Math.PI * R
+// ── Data types ─────────────────────────────────────────────────────────────────
 
 const FALLBACK_COLORS = [
   '#60a5fa', '#f87171', '#4ade80', '#facc15',
   '#a78bfa', '#fb923c', '#2dd4bf', '#f472b6', '#94a3b8',
 ]
 
-function DonutChart({ slices }: { slices: Array<{ label: string; seconds: number; color: string }> }) {
-  const total = slices.reduce((s, x) => s + x.seconds, 0)
-  if (total === 0) return null
-  let cum = 0
-  return (
-    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="shrink-0">
-      <circle cx={CTR} cy={CTR} r={R} fill="none" stroke="hsl(var(--border))" strokeWidth={STROKE} />
-      {slices.map((slice, i) => {
-        const frac = slice.seconds / total
-        const dash = frac * C - 2
-        const angle = cum * 360 - 90
-        cum += frac
-        return (
-          <circle key={i} cx={CTR} cy={CTR} r={R} fill="none"
-            stroke={slice.color} strokeWidth={STROKE}
-            strokeDasharray={`${Math.max(0, dash)} ${C}`}
-            transform={`rotate(${angle}, ${CTR}, ${CTR})`}
-          />
-        )
-      })}
-    </svg>
-  )
-}
-
 // ── Data types ─────────────────────────────────────────────────────────────────
 
 interface DashboardData {
   todayTotal: number
   todayTasks: Array<{ id: string; title: string; seconds: number }>
+  todayTags: Array<{ tag: string; seconds: number; color: string }>
   weekTotal: number
   weekTags: Array<{ tag: string; seconds: number; color: string }>
   past14: Array<{ date: string; seconds: number }>
@@ -252,13 +228,28 @@ function compute(todos: Todo[], tagColors: Record<string, string>, sessions: Ses
 
   // ── Today
   const todayTaskMap: Record<string, number> = {}
+  const todayTagMap: Record<string, number> = {}
   for (const s of sessions.filter(s => s.date === today)) {
     todayTaskMap[s.todoId] = (todayTaskMap[s.todoId] ?? 0) + s.seconds
+    const tags = todoMap.get(s.todoId)?.tags ?? []
+    if (tags.length === 0) {
+      todayTagMap['untagged'] = (todayTagMap['untagged'] ?? 0) + s.seconds
+    } else {
+      for (const tag of tags) {
+        todayTagMap[tag] = (todayTagMap[tag] ?? 0) + s.seconds
+      }
+    }
   }
   const todayTasks = Object.entries(todayTaskMap)
     .map(([id, seconds]) => ({ id, title: todoMap.get(id)?.title ?? 'Deleted task', seconds }))
     .sort((a, b) => b.seconds - a.seconds)
   const todayTotal = todayTasks.reduce((s, t) => s + t.seconds, 0)
+  const todayTags = Object.entries(todayTagMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([tag, seconds], i) => ({
+      tag, seconds,
+      color: tag === 'untagged' ? '#94a3b8' : (tagColors[tag] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length]),
+    }))
 
   // ── This week by tag
   const weekSessions = sessions.filter(s => s.date >= wStart)
@@ -318,7 +309,7 @@ function compute(todos: Todo[], tagColors: Record<string, string>, sessions: Ses
     }))
 
   return {
-    todayTotal, todayTasks,
+    todayTotal, todayTasks, todayTags,
     weekTotal, weekTags,
     past14,
     allTimeTotal,
@@ -369,8 +360,6 @@ export default function StatsPage() {
 
   if (!data) return null
 
-  const maxBar = Math.max(...data.past14.map(d => d.seconds), 1)
-
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
       <header className="px-6 py-4 border-b border-border shrink-0 flex items-center justify-between">
@@ -383,8 +372,19 @@ export default function StatsPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="pb-10">
           {/* ── Completion heatmap ────────────────────────────────────────── */}
-          <SectionHeader label="Tasks completed — past year" />
-          <CompletionHeatmap completionsByDay={data.completionsByDay} />
+          <SectionHeader label="Tasks completed" />
+          <div className="grid grid-cols-2 gap-px bg-border mx-4 rounded-lg overflow-hidden sm:grid-cols-4">
+            <CompletionHeatmap completionsByDay={data.completionsByDay} />
+            <div className="bg-background px-4 py-4">
+              <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">Today</p>
+              <p className="text-xl font-semibold tabular-nums">{data.todayCompletions.length}</p>
+            </div>
+            <div className="bg-background px-4 py-4">
+              <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">This week</p>
+              <p className="text-xl font-semibold tabular-nums">{data.weekCompletions.length}</p>
+            </div>
+          </div>
+          
 
           {!data.hasAnyData && data.totalCompleted === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-2 text-center px-8">
@@ -395,176 +395,51 @@ export default function StatsPage() {
             </div>
           ) : (
             <>
-            {/* ── Tasks completed ───────────────────────────────────────────── */}
-            {data.totalCompleted > 0 && (
+            {/* ── Time today by category ────────────────────────────────────── */}
+            {data.todayTags.length > 0 && (
               <>
-                <SectionHeader label="Tasks completed" />
-                <div className="grid grid-cols-4 gap-px bg-border mx-4 rounded-lg overflow-hidden">
-                  <div className="bg-background px-4 py-4">
-                    <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">All time</p>
-                    <p className="text-xl font-semibold tabular-nums">{data.totalCompleted}</p>
-                  </div>
-                  <div className="bg-background px-4 py-4">
-                    <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">Today</p>
-                    <p className="text-xl font-semibold tabular-nums">{data.todayCompletions.length}</p>
-                  </div>
-                  <div className="bg-background px-4 py-4">
-                    <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">This week</p>
-                    <p className="text-xl font-semibold tabular-nums">{data.weekCompletions.length}</p>
-                  </div>
-                  <div className="bg-background px-4 py-4">
-                    <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">Streak</p>
-                    <p className="text-xl font-semibold tabular-nums">{data.completionStreak}</p>
-                    <p className="text-[10px] text-muted-foreground/40 mt-0.5">{data.completionStreak === 1 ? 'day' : 'days'}</p>
-                  </div>
-                </div>
-
-                {data.completionsByTag.length > 0 && (
-                  <>
-                    <SectionHeader label="This week by category" right={`${data.weekCompletions.length} tasks`} />
-                    <div className="px-4 flex flex-col gap-2">
-                      {data.completionsByTag.map(({ tag, count, color }) => (
-                        <div key={tag} className="flex items-center gap-3">
-                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                          <span className="text-sm text-muted-foreground flex-1">{tag}</span>
-                          <div className="flex-1 h-[3px] rounded-full bg-border overflow-hidden max-w-24">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${(count / Math.max(...data.completionsByTag.map(t => t.count))) * 100}%`,
-                                backgroundColor: color,
-                              }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium tabular-nums w-6 text-right">{count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {data.todayCompletions.length > 0 && (
-                  <>
-                    <SectionHeader label="Completed today" />
-                    {data.todayCompletions.map((c, i) => (
-                      <div key={i} className="flex items-center px-4 py-2 border-b border-border/20 last:border-0">
-                        <span className="flex-1 text-sm truncate">{c.title}</span>
-                        {c.tags.length > 0 && (
-                          <span className="text-xs text-muted-foreground/50 ml-2">{c.tags.join(', ')}</span>
-                        )}
+                <SectionHeader label="Today by category" right={fmt(data.todayTotal)} />
+                <div className="px-4 flex flex-col gap-2">
+                  {data.todayTags.map(({ tag, seconds, color }) => (
+                    <div key={tag} className="flex items-center gap-3">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-sm text-muted-foreground flex-1">{tag}</span>
+                      <div className="flex-1 h-[3px] rounded-full bg-border overflow-hidden max-w-24">
+                        <div className="h-full rounded-full"
+                          style={{
+                            width: `${(seconds / Math.max(...data.todayTags.map(t => t.seconds))) * 100}%`,
+                            backgroundColor: color,
+                          }} />
                       </div>
-                    ))}
-                  </>
-                )}
+                      <span className="text-sm font-medium tabular-nums">{fmt(seconds)}</span>
+                    </div>
+                  ))}
+                </div>
               </>
             )}
 
-            {/* ── All time ──────────────────────────────────────────────────── */}
-            <SectionHeader label="Time — all time" />
-            <div className="grid grid-cols-3 gap-px bg-border mx-4 rounded-lg overflow-hidden">
-              <div className="bg-background px-4 py-4">
-                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">Total</p>
-                <p className="text-xl font-semibold tabular-nums">{fmt(data.allTimeTotal)}</p>
-              </div>
-              <div className="bg-background px-4 py-4">
-                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">Best day</p>
-                <p className="text-xl font-semibold tabular-nums">{fmt(data.bestDaySeconds)}</p>
-                {data.bestDayDate && (
-                  <p className="text-[10px] text-muted-foreground/40 mt-0.5">{formatDate(data.bestDayDate)}</p>
-                )}
-              </div>
-              <div className="bg-background px-4 py-4">
-                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest mb-1.5">Streak</p>
-                <p className="text-xl font-semibold tabular-nums">{data.streak}</p>
-                <p className="text-[10px] text-muted-foreground/40 mt-0.5">{data.streak === 1 ? 'day' : 'days'}</p>
-              </div>
-            </div>
-
-            {/* ── Today ─────────────────────────────────────────────────────── */}
-            <SectionHeader label="Time — today" right={data.todayTotal > 0 ? fmt(data.todayTotal) : undefined} />
-            {data.todayTasks.length === 0 ? (
-              <p className="px-4 text-xs text-muted-foreground/40 pb-2">No sessions logged today.</p>
-            ) : (
-              data.todayTasks.map(task => (
-                <div key={task.id} className="flex items-center px-4 py-2 border-b border-border/20 last:border-0">
-                  <span className="flex-1 text-sm truncate">{task.title}</span>
-                  <span className="text-sm tabular-nums text-muted-foreground">{fmt(task.seconds)}</span>
-                </div>
-              ))
-            )}
-
-            {/* ── This week ─────────────────────────────────────────────────── */}
+            {/* ── Time this week by category ────────────────────────────────── */}
             {data.weekTotal > 0 && (
               <>
-                <SectionHeader label="Time — this week" right={fmt(data.weekTotal)} />
-                <div className="flex items-start gap-6 px-4">
-                  <DonutChart slices={data.weekTags.map(t => ({ label: t.tag, seconds: t.seconds, color: t.color }))} />
-                  <div className="flex flex-col gap-2.5 pt-1">
-                    {data.weekTags.map(({ tag, seconds, color }) => (
-                      <div key={tag} className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                        <span className="text-sm text-muted-foreground">{tag}</span>
-                        <span className="text-sm font-medium tabular-nums ml-4">{fmt(seconds)}</span>
+                <SectionHeader label="This week by category" right={fmt(data.weekTotal)} />
+                <div className="px-4 flex flex-col gap-2">
+                  {data.weekTags.map(({ tag, seconds, color }) => (
+                    <div key={tag} className="flex items-center gap-3">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-sm text-muted-foreground flex-1">{tag}</span>
+                      <div className="flex-1 h-[3px] rounded-full bg-border overflow-hidden max-w-24">
+                        <div className="h-full rounded-full"
+                          style={{
+                            width: `${(seconds / Math.max(...data.weekTags.map(t => t.seconds))) * 100}%`,
+                            backgroundColor: color,
+                          }} />
                       </div>
-                    ))}
-                  </div>
+                      <span className="text-sm font-medium tabular-nums">{fmt(seconds)}</span>
+                    </div>
+                  ))}
                 </div>
               </>
             )}
-
-            {/* ── Past 14 days ──────────────────────────────────────────────── */}
-            {/* <SectionHeader label="Past 14 days" /> */}
-
-            {/* Bar chart */}
-            {/* <div className="px-4">
-              <div className="flex items-end gap-0.5 h-10">
-                {data.past14.map(day => (
-                  <div
-                    key={day.date}
-                    className="flex-1 rounded-sm"
-                    style={{
-                      height: day.seconds > 0 ? `${Math.max(3, (day.seconds / maxBar) * 40)}px` : '2px',
-                      backgroundColor: day.date === dateStr(0)
-                        ? 'hsl(var(--foreground))'
-                        : day.seconds > 0
-                        ? 'hsl(var(--foreground) / 0.25)'
-                        : 'hsl(var(--border))',
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="flex gap-0.5 mt-1">
-                {data.past14.map(day => (
-                  <div key={day.date} className="flex-1 text-center">
-                    <span className={`text-[9px] ${day.date === dateStr(0) ? 'text-foreground/60' : 'text-muted-foreground/40'}`}>
-                      {dayLabel(day.date)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div> */}
-
-            {/* Day breakdown list — only days with data */}
-            {/* <div className="mt-3">
-              {data.past14
-                .filter(d => d.seconds > 0)
-                .slice()
-                .reverse()
-                .map(day => (
-                  <div key={day.date} className="flex items-center px-4 py-1.5 border-b border-border/20 last:border-0">
-                    <span className="text-xs text-muted-foreground w-20 shrink-0">
-                      {day.date === dateStr(0) ? 'Today' : formatDate(day.date)}
-                    </span>
-                    <div className="flex-1 h-[2px] rounded-full bg-border mx-3 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-foreground/30"
-                        style={{ width: `${(day.seconds / maxBar) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs tabular-nums text-muted-foreground">{fmt(day.seconds)}</span>
-                  </div>
-                ))}
-            </div> */}
             </>
           )}
         </div>
